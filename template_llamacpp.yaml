@@ -1,0 +1,221 @@
+zabbix_export:
+  version: '7.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 2a3961182aab4879a0a4f66222a8be39
+      template: 'llama API'
+      name: 'llama API'
+      description: 'llama.cpp server (--host/--port HTTP API): /health, /props, /models. Макрос {$LLAMA_PORT} = 8080.'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 1b979e9979394725abd1b4b7c5223796
+          name: 'llama.cpp: build info'
+          type: DEPENDENT
+          key: llama.build.info
+          history: 30d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.build_info
+          master_item:
+            key: llama.props.raw
+        - uuid: dbb1126dbc3749adab82db576d02c25a
+          name: 'llama.cpp: health status flag'
+          type: DEPENDENT
+          key: llama.health.flag
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+            - type: JAVASCRIPT
+              parameters:
+                - 'return value === "ok" ? 1 : 0;'
+          master_item:
+            key: llama.health.raw
+        - uuid: c2248d0be5a641babcb5d543201a8499
+          name: 'llama.cpp: /health raw'
+          type: HTTP_AGENT
+          key: llama.health.raw
+          history: '0'
+          value_type: TEXT
+          timeout: 15s
+          url: 'http://{HOST.CONN}:{$LLAMA_PORT}/health'
+        - uuid: 4a8c0e3c3c594547a357b5a3c6e989d6
+          name: 'llama.cpp: model count in memory'
+          type: DEPENDENT
+          key: llama.model.count
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.length()
+          master_item:
+            key: llama.models.raw
+        - uuid: 10626bb4f5b443d5a0edeb30febaf211
+          name: 'llama.cpp: loaded model list'
+          type: DEPENDENT
+          key: llama.model.list
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[*].id'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var a = JSON.parse(value);
+                  return a.join(", ");
+          master_item:
+            key: llama.models.raw
+        - uuid: 2832bb07ab9f434a805bb2b567c24ee2
+          name: 'llama.cpp: model path'
+          type: DEPENDENT
+          key: llama.model.path
+          history: 90d
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[0].id'
+          master_item:
+            key: llama.models.raw
+        - uuid: 9457c2ff8a0c4735a49c9d3976b4fd0e
+          name: 'llama.cpp: model file size'
+          type: DEPENDENT
+          key: llama.model.size
+          history: 90d
+          units: B
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.data[0].meta.size'
+          master_item:
+            key: llama.models.raw
+        - uuid: 70a19a5ebafa4785ab132c196a7fdfdb
+          name: 'llama.cpp: /models raw'
+          type: HTTP_AGENT
+          key: llama.models.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          timeout: 15s
+          url: 'http://{HOST.CONN}:{$LLAMA_PORT}/models'
+        - uuid: 30bc057e7ba54996b75175713795f94f
+          name: 'llama.cpp: /props raw'
+          type: HTTP_AGENT
+          key: llama.props.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          timeout: 15s
+          url: 'http://{HOST.CONN}:{$LLAMA_PORT}/props'
+        - uuid: be8b855bd536473989cffd636ff936b7
+          name: 'llama.cpp: sleeping flag (is_sleeping)'
+          type: DEPENDENT
+          key: llama.sleeping.flag
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.is_sleeping
+            - type: JAVASCRIPT
+              parameters:
+                - 'return (value === true || value === "true") ? 1 : 0;'
+          master_item:
+            key: llama.props.raw
+        - uuid: e3476f76dbd044c6a6f32caf45b44c88
+          name: 'llama.cpp: parallel slots (total_slots)'
+          type: DEPENDENT
+          key: llama.slots.total
+          history: 90d
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total_slots
+          master_item:
+            key: llama.props.raw
+        - uuid: 16b8b5f301614a888a3efff95d0838d0
+          name: 'llama.cpp: API port'
+          type: SIMPLE
+          key: 'net.tcp.service[http,,{$LLAMA_PORT}]'
+          history: 90d
+          triggers:
+            - uuid: 168a915628514154893afd3469f9ab62
+              expression: 'last(/llama API/net.tcp.service[http,,{$LLAMA_PORT}])=0'
+              name: 'TCP-порт llama.cpp закрыт. Проверьте, что сервер llama.cpp (--host/--port) запущен.'
+              event_name: 'llama.cpp: порт {$LLAMA_PORT} недоступен'
+              priority: HIGH
+              description: 'Проверьте, что сервер llama.cpp (--host/--port) запущен.'
+      discovery_rules:
+        - uuid: 8ba762a5b376415eb31deb437cac73da
+          name: 'llama.cpp: models'
+          type: DEPENDENT
+          key: llama.models.discovery
+          item_prototypes:
+            - uuid: 31a55debc6544b39867c1bb3a06f3e0f
+              name: 'llama.cpp: parameters of {#MODELID}'
+              type: DEPENDENT
+              key: 'llama.model.nparams[{#MODELID}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id == "{#MODELID}")].meta.n_params'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '[]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var a = JSON.parse(value); return a.length ? a[0] : 0;'
+              master_item:
+                key: llama.models.raw
+            - uuid: 3b21e2f29cf240dda702ad89b8e5c7e3
+              name: 'llama.cpp: file size of {#MODELID}'
+              type: DEPENDENT
+              key: 'llama.model.size[{#MODELID}]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.data[?(@.id == "{#MODELID}")].meta.size'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '[]'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'var a = JSON.parse(value); return a.length ? a[0] : 0;'
+              master_item:
+                key: llama.models.raw
+          master_item:
+            key: llama.models.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value).data;
+                  var out = [];
+                  for (var i = 0; i < d.length; i++) {
+                    out.push({
+                      "{#MODELID}": d[i].id
+                    });
+                  }
+                  return JSON.stringify(out);
+      macros:
+        - macro: '{$LLAMA_PORT}'
+          value: '8080'
+  triggers:
+    - uuid: 659b369edfae41da8054c37dbc3e1f5e
+      expression: 'min(/llama API/llama.model.count,10m)=0 and last(/llama API/llama.health.flag)=1'
+      name: 'Сервер жив, но за loaded models пусто 10+ минут.'
+      event_name: 'llama.cpp: в памяти нет ни одной модели'
+      priority: WARNING
+      description: 'Сервер жив, но /models пуст — модель не загружена.'
+    - uuid: bae178574f654b91a587a17e141aaf9d
+      expression: 'last(/llama API/llama.health.flag)=0 and last(/llama API/net.tcp.service[http,,{$LLAMA_PORT}])=1'
+      name: 'Эндпоинт /health доступен, но status не ''ok''.'
+      event_name: 'llama.cpp: /health отвечает, но status != ok'
+      priority: AVERAGE
+      description: 'Сервер llama.cpp отвечает, но /health не в состоянии ok.'
