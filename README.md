@@ -1,47 +1,48 @@
-# Zabbix шаблон: llama.cpp server (llama API)
+# Zabbix template: llama.cpp server (llama API)
 
-Мониторинг [llama.cpp](https://github.com/ggml-org/llama.cpp) HTTP-сервера (`llama-server`) через Zabbix 7.x.
+Monitoring for [llama.cpp](https://github.com/ggml-org/llama.cpp) HTTP server (`llama-server`) on Zabbix 7.x.
 
-## Эндпоинты
+## Endpoints
 
-| Master | Эндпоинт | Что даёт |
+| Master item | Endpoint | Provides |
 |---|---|---|
 | `llama.health.raw` | `/health` | `{"status":"ok"}` |
 | `llama.props.raw` | `/props` | build_info, total_slots, is_sleeping, model_path |
-| `llama.models.raw` | `/models` | модель, контекст, размер файла |
+| `llama.models.raw` | `/models` | model, context size, file size |
 
-Модель в llama.cpp фиксируется при старте сервера — понятия loaded/unloaded нет,
-`/models` это конфигурация сервера.
+The model in llama.cpp is fixed at server startup — there is no loaded/unloaded notion,
+`/models` just reflects server configuration.
 
-## ITEM'ы
+## Items
 
-- `llama.health.flag` — 1 если `status == ok`
-- `llama.sleeping.flag` — режим сна (`is_sleeping`; JSON-boolean в JS приходит строкой `"false"` — сравнивается явно)
-- `llama.slots.total` — параллельные слоты
+- `llama.health.flag` — 1 if `status == ok`
+- `llama.sleeping.flag` — sleep mode (`is_sleeping`; note: a JSON boolean reaches a JS step
+  as the string `"false"`, so it must be compared explicitly)
+- `llama.slots.total` — parallel slots
 - `llama.model.count` / `llama.model.list` / `llama.model.path` / `llama.model.size`
-- `llama.build.info` — версия сборки
-- `net.tcp.service[http,,{$LLAMA_PORT}]` — simple check порта
+- `llama.build.info` — build version
+- `net.tcp.service[http,,{$LLAMA_PORT}]` — simple port check
 
 ## LLD
 
-Правило `llama.models.discovery` по `/models` — прототипы `llama.model.nparams[{#MODELID}]`
-и `llama.model.size[{#MODELID}]`.
+`llama.models.discovery` (from `/models`) — prototypes `llama.model.nparams[{#MODELID}]`
+and `llama.model.size[{#MODELID}]`.
 
-## Триггеры
+## Triggers
 
-| Событие | Sev | Условие |
+| Event | Severity | Condition |
 |---|---|---|
-| llama.cpp: порт {$LLAMA_PORT} недоступен | High | TCP закрыт |
-| llama.cpp: /health отвечает, но status != ok | Warning | живой эндпоинт, ненормальный статус |
-| llama.cpp: в памяти нет ни одной модели | Warning | `model.count=0` 10m при живом health |
+| llama.cpp: port {$LLAMA_PORT} unreachable | High | TCP port closed |
+| llama.cpp: /health responds but status != ok | Warning | endpoint alive, abnormal status |
+| llama.cpp: no model in memory | Warning | `model.count=0` for 10m while health is alive |
 
-## Макросы
+## Macros
 
-| Макрос | По умолчанию |
+| Macro | Default |
 |---|---|
 | `{$LLAMA_PORT}` | `8080` |
 
-## Установка
+## Setup
 
 1. Import `template_llamacpp.yaml`.
-2. Хост с Agent-interface (`{HOST.CONN}`), привязать шаблон.
+2. Host with an Agent interface (`{HOST.CONN}`), link the template.

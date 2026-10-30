@@ -7,7 +7,7 @@ zabbix_export:
     - uuid: 2a3961182aab4879a0a4f66222a8be39
       template: 'llama API'
       name: 'llama API'
-      description: 'llama.cpp server (--host/--port HTTP API): /health, /props, /models. Макрос {$LLAMA_PORT} = 8080.'
+      description: 'llama.cpp server (--host/--port HTTP API): /health, /props, /models. Macro {$LLAMA_PORT} = 8080.'
       groups:
         - name: Templates/Applications
       items:
@@ -148,10 +148,10 @@ zabbix_export:
           triggers:
             - uuid: 168a915628514154893afd3469f9ab62
               expression: 'last(/llama API/net.tcp.service[http,,{$LLAMA_PORT}])=0'
-              name: 'TCP-порт llama.cpp закрыт. Проверьте, что сервер llama.cpp (--host/--port) запущен.'
-              event_name: 'llama.cpp: порт {$LLAMA_PORT} недоступен'
+              name: 'llama.cpp TCP port is closed. Make sure the llama.cpp server (--host/--port) is running.'
+              event_name: 'llama.cpp: port {$LLAMA_PORT} unreachable'
               priority: HIGH
-              description: 'Проверьте, что сервер llama.cpp (--host/--port) запущен.'
+              description: 'Make sure the llama.cpp server (--host/--port) is running.'
       discovery_rules:
         - uuid: 8ba762a5b376415eb31deb437cac73da
           name: 'llama.cpp: models'
@@ -207,15 +207,15 @@ zabbix_export:
         - macro: '{$LLAMA_PORT}'
           value: '8080'
   triggers:
-    - uuid: 659b369edfae41da8054c37dbc3e1f5e
-      expression: 'min(/llama API/llama.model.count,10m)=0 and last(/llama API/llama.health.flag)=1'
-      name: 'Сервер жив, но за loaded models пусто 10+ минут.'
-      event_name: 'llama.cpp: в памяти нет ни одной модели'
-      priority: WARNING
-      description: 'Сервер жив, но /models пуст — модель не загружена.'
     - uuid: bae178574f654b91a587a17e141aaf9d
       expression: 'last(/llama API/llama.health.flag)=0 and last(/llama API/net.tcp.service[http,,{$LLAMA_PORT}])=1'
-      name: 'Эндпоинт /health доступен, но status не ''ok''.'
-      event_name: 'llama.cpp: /health отвечает, но status != ok'
+      name: '/health endpoint is reachable but status is not ''ok''.'
+      event_name: 'llama.cpp: /health responds but status != ok'
       priority: AVERAGE
-      description: 'Сервер llama.cpp отвечает, но /health не в состоянии ok.'
+      description: 'llama.cpp server responds but /health status is not ok.'
+    - uuid: 659b369edfae41da8054c37dbc3e1f5e
+      expression: 'min(/llama API/llama.model.count,10m)=0 and last(/llama API/llama.health.flag)=1'
+      name: 'Server is alive but loaded models have been empty for 10+ minutes.'
+      event_name: 'llama.cpp: no model in memory'
+      priority: WARNING
+      description: 'Server is alive but /models is empty — no model loaded.'
